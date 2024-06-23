@@ -1,131 +1,156 @@
 import time
-import ccxt
+# import ccxt
 
-# 初始化 Bybit 期貨客戶端
-bybit = ccxt.bybit({
-    'apiKey': '',
-    'secret': '',
-})
+# # 初始化 Bybit 期貨客戶端
+# bybit = ccxt.bybit({
+#     'apiKey': '',
+#     'secret': '',
+# })
 
 # 設定交易對和數量
-symbol_agix = 'AGIX/USDT:USDT'  # AGIXUSDU21 是 AGIX 的期貨合約
-symbol_fet = 'FET/USDT:USDT'    # FETUSDU21 是 FET 的期貨合約
-symbol_usdc = 'USDC/USDT:USDT'    # FETUSDU21 是 FET 的期貨合約
-agix_amount = 30
-fet_amount = 13                          # 下單數量
+# symbol_agix = 'AGIX/USDT:USDT'  # AGIXUSDU21 是 AGIX 的期貨合約
+# symbol_fet = 'FET/USDT:USDT'    # FETUSDU21 是 FET 的期貨合約
+# symbol_usdc = 'USDC/USDT:USDT'    # FETUSDU21 是 FET 的期貨合約
+symbol_btc = 'BTC/USDT:USDT' 
+symbol_sol = 'SOL/USDT:USDT' 
+symbol_bnb = 'BNB/USDT:USDT' 
+symbol_eth = 'ETH/USDT:USDT' 
+
+# sell symbol lists
+short_symbol = [symbol_btc, symbol_eth, symbol_sol]
+long_symbol = [symbol_bnb]
+
+# 設定風報比(R)
+risk_ratio = 1.5
+stop_ratio = 0.02
+profit_ratio = risk_ratio * stop_ratio
 
 # 假設你想要在 AGIX 價格高於 10 USDT 時下多單，低於 9 USDT 時下空單
-target_buy_ratio = 1.0260
-target_sell_ratio = 1.02
+init_buy_ratio = 1.0260
+adjust_buy_ratio = init_buy_ratio
+init_sell_ratio = init_buy_ratio * (1.0 - stop_ratio)
+adjust_sell_ratio = init_buy_ratio * (1.0 + profit_ratio)
+
+def sell(symbol, amount):
+    order_short_futures = bybit.create_order(
+        symbol,
+        'Market',
+        'sell',
+        amount,
+    )
+    print(f"期貨開空單成功：{order_short_futures['info']}")
+
+def buy(symbol, amount):
+    order_long_futures = bybit.create_order(
+        symbol,
+        'Market',
+        'buy',
+        amount,
+    )
+    print(f"期貨開多單成功：{order_long_futures['info']}")
+
+def build_long_short_contracts(long_symbol, short_symbol, long_amount, short_amount):
+    long_size = len(long_symbol)
+    short_size = len(short_symbol)
+    each_long_amount = long_amount/long_size
+    each_short_amount = short_amount/short_size
+
+    for item in long_symbol:
+        buy(item, each_long_amount)
+        print(item)
+        
+
+    for item in short_symbol:
+        sell(item, each_short_amount)
+        print(item)
+
+def get_long_short_ratio(long_symbol, short_symbol):
+    # 確認目前交易對情況
+    position_info = bybit.fetch_positions()
+    long_amount = 0.0
+    short_amount = 0.0
+
+    for position in position_info:
+        for item in long_symbol:
+            if position['symbol'] == item:
+                symbol_size = position['contracts']
+
+                # 獲取交易對的目前價格
+                long_ticker = bybit.fetch_ticker(item)
+                # 提取價格
+                long_price = long_ticker['last']
+                long_symbol_amount = long_price * symbol_size
+                long_amount += long_symbol_amount
+
+                print(f"交易對 {item} 的數量：{symbol_size}, 有{long_symbol_amount} USDT")
+
+        for item in short_symbol:
+            if position['symbol'] == item:
+                symbol_size = position['contracts']
+                
+                # 獲取交易對的目前價格
+                short_ticker = bybit.fetch_ticker(item)
+                # 提取價格
+                short_price = short_ticker['last']
+                short_symbol_amount = short_price * symbol_size
+                short_amount += short_symbol_amount
+
+                print(f"交易對 {item} 的數量：{symbol_size}, 有{short_symbol_amount} USDT")
+
+    long_short_ratio = long_amount / short_amount
+
+    print(f"long short ration的值為: {long_short_ratio}\n\n\n")
+
+    return long_short_ratio
+
+# def get_amount(symbol):
+#     # 確認目前交易對情況
+#     position_info = bybit.fetch_positions()
+#     for position in position_info:
+#         if position['symbol'] == symbol:
+
+# 程式開始
+# 一行中輸入多個幣對，以空格分隔
+long_symbol = [str(item) for item in input("做空幣對：").split()]
+short_symbol = [str(item) for item in input("做多幣對：").split()]
+print(long_symbol)
+print(short_symbol)
+
+# 設定風報比
+risk_ratio = float(input("請輸入風報比："))
+stop_ratio = float(input("請設定損失比例："))
+print(risk_ratio)
+print(stop_ratio)
+
+# 計算停利停損ratio
+# init_buy_ratio = get_long_short_ratio(long_symbol, short_symbol)
+adjust_buy_ratio = init_buy_ratio
+adjust_profit_ratio = adjust_buy_ratio * (1.0 - stop_ratio)
+adjust_sell_ratio = adjust_buy_ratio * (1.0 + profit_ratio)
+print(adjust_profit_ratio)
+print(adjust_sell_ratio)
 
 while True:
     try:
-        fet_size = 0
-        agix_size = 0
+        # 確認目前最新ratio
+        long_short_ratio = get_long_short_ratio(long_symbol, short_symbol)
 
-        # 確認目前交易對情況
-        position_info = bybit.fetch_positions()
-        # count = position_info.count()
-        # print(f"finish get position {count}")
-        for position in position_info:
-            print(f"in position loop, 交易對" + position['symbol'])
-            if position['symbol'] == "FET/USDT:USDT":
-                entry_price = position['entryPrice']
-                fet_size = position['contracts']
-                mode = position['marginMode']
-                fet_side = position['side']
-                percentage = position['contractSize']
-                # print(f"交易對 {symbol_fet} 的開倉價格：{entry_price} USDT，數量：{agix_size} 初始保證金百分比：{percentage * 100:.3f}%")
-                print(f"交易對 {symbol_fet} 的開倉價格：{entry_price} USDT，數量：{fet_size} mode: {mode} {percentage}, 買多賣空: {fet_side}")
+        # 設定移動停利停損
+        if long_short_ratio > adjust_buy_ratio:
+            print(f"更新buy ratio為：{long_short_ratio}, 原本 ratio為:{adjust_buy_ratio}, 原始買入ratio為:{init_buy_ratio}")
+            adjust_sell_ratio = long_short_ratio * (1.0 - stop_ratio)
+            adjust_stop_ratio = long_short_ratio * (1.0 + profit_ratio)
+            adjust_buy_ratio = long_short_ratio
 
-            if position['symbol'] == "AGIX/USDT:USDT":
-                entry_price = position['entryPrice']
-                agix_size = position['contracts']
-                mode = position['marginMode']
-                agix_side = position['side']
-                percentage = position['contractSize']
-                # print(f"交易對 {symbol_agix} 的開倉價格：{entry_price} USDT，數量：{agix_size} mode: {mode} 初始保證金百分比：{percentage * 100:.3f}%")
-                print(f"交易對 {symbol_agix} 的開倉價格：{entry_price} USDT，數量：{agix_size} mode: {mode} 初始保證金百分比：{percentage}, 買多賣空: {agix_side}")
-
-
-        # 獲取 AGIX 和 FET 的目前價格
-        fet_ticker = bybit.fetch_ticker(symbol_fet)
-        agix_ticker = bybit.fetch_ticker(symbol_agix)
-
-        # 提取價格
-        agix_price = agix_ticker['last']
-        fet_price = fet_ticker['last']
-
-        stock_total_price = fet_size * fet_price
-        risk_ratio = stock_total_price / 512
-
-        print(f"AGIX 目前價格：{agix_price} USDT")
-        print(f"FET 目前價格：{fet_price} USDT")
-        print(f"目前FET 持倉總值：{ stock_total_price} USDT")
-        print(f"目前 risk ratio：{ risk_ratio}")
-
-        fet_agix_ratio = fet_price*433.226/agix_price/1000
-        print(f"目前fet/agix交易對ratio：{fet_agix_ratio} USDT")
-
-        if fet_agix_ratio > target_buy_ratio and risk_ratio < 1:
+        # 到達停損，清空艙位
+        if long_short_ratio == adjust_stop_ratio:
             # 下多單
-            print(f"FET_AGIX 價格高於 {fet_agix_ratio} USDT，買入fet_agix交易對")
-            # 在這裡執行下多單的操作
-            # 開多單（做多）
-            order_long_futures = bybit.create_order(
-                symbol_agix,
-                'Market',
-                'buy',
-                agix_amount,
-            )
-            print(f"期貨開多單成功：{order_long_futures['info']}")
-
-            # 開空單（做空）
-            order_short_futures = bybit.create_order(
-                symbol_fet,
-                'Market',
-                'sell',
-                fet_amount,
-            )
-            print(f"期貨開空單成功：{order_short_futures['info']}")
-
-            # break
-
-        elif fet_agix_ratio < target_sell_ratio and agix_size > 39:
-            # 下空單
-            print(f"FET_AGIX 價格低於 {target_sell_ratio} USDT，賣出fet_agix交易對")
-            # 在這裡執行下空單的操作
-            # 開多單（做空）
-            order_long_futures = bybit.create_order(
-                symbol_agix,
-                'Market',
-                'sell',
-                agix_amount,
-            )
-
-            print(f"期貨開空單成功：{order_long_futures['info']}")
-
-            # 開多單（做多）
-            order_short_futures = bybit.create_order(
-                symbol_fet,
-                'Market',
-                'buy',
-                fet_amount,
-            )
-            print(f"期貨開多單成功：{order_short_futures['info']}")
-
+            sell(long_symbol)
+            buy(short_symbol)
         else:
             print("Ratio 價格在目標區間內，不執行任何操作\n\n")
     except Exception as e:
         print(f"Error fetching price: {e}")
     
-    # 每隔 2 秒下單一次
-    time.sleep(2)
-
-# test
-# leverage = 2  # 槓桿倍數
-# # bybit.set_leverage(leverage, symbol_usdc)
-# # order = bybit.create_market_buy_order(symbol_usdc, 5, params = {"leverage": 2})
-# order = bybit.create_market_sell_order(symbol_usdc, 5, params = {"leverage": 2})
-
-# print(f"下單成功，訂單 ID：{order['id']}")
+    # 每隔 4 秒下單一次
+    time.sleep(4)
