@@ -37,32 +37,60 @@ symbol_eth = 'ETH/USDT:USDT'
 # adjust_sell_ratio = init_buy_ratio * (1.0 + profit_ratio)
 # adjust_stop_ratio = 3.5
 
-def sell(symbol, amount):
+def current_profit_loss_ratio(long_symbol, short_symbol):
+    # long_latest_price = get_price(long_symbol)
+    # short_latest_price = get_price(short_symbol)
+    # long_size = get_size(long_symbol)
+    # short_size = get_size(short_symbol)
+
+    # # 計算實際獲利或虧損
+    # long_stop_amount = long_latest_price * long_size
+    # short_stop_amount = short_latest_price * short_size
+
+    # stop_profit_ratio = ((long_stop_amount + short_stop_amount) / actual_input_amount) - 1
+   # 獲取所有倉位
+    # positions = bybit.private_linear_get_position_list()['result']
+
+    # 篩選出BTC倉位
+    # btc_position = next((position for position in positions if position['symbol'] == 'BTCUSDT'), None)
+
+    # print(f"做多已結盈虧：{realized_pnl} 做空已結盈虧：{actual_input_amount}")
+
+def sell_by_contracts(symbol, contracts):
     print(f"賣出\n\n\n")
-    # order_short_futures = bybit.create_order(
-    #     symbol,
-    #     'Market',
-    #     'sell',
-    #     amount,
-    # )
-    # print(f"期貨開空單成功：{order_short_futures['info']}")
+    order_short_futures = bybit.create_order(
+        symbol,
+        'Market',
+        'sell',
+        contracts,
+    )
+    print(f"期貨開空單成功：{order_short_futures['info']}")
 
-def buy(symbol, amount):
+def buy_by_contracts(symbol, contracts):
     print(f"買入\n\n\n")
-    # order_long_futures = bybit.create_order(
-    #     symbol,
-    #     'Market',
-    #     'buy',
-    #     amount,
-    # )
-    # print(f"期貨開多單成功：{order_long_futures['info']}")
+    order_long_futures = bybit.create_order(
+        symbol,
+        'Market',
+        'buy',
+        contracts,
+    )
+    print(f"期貨開多單成功：{order_long_futures['info']}")
 
-def build_long_short_contracts(long_symbol, short_symbol, long_amount, short_amount):
-    buy(long_symbol, long_amount)
-    print(f"做多{long_symbol} {long_amount} USDT")
+def amount_to_contracts(symbol, amount):
+    symbol_price = get_price(symbol)
+    num_contracts = round(amount / symbol_price, 3)
+    print(f"usdt轉換成{symbol}下單數量, {num_contracts}口\n\n\n")
 
-    sell(short_symbol, short_amount)
-    print(f"做空{long_symbol} {short_amount} USDT")
+    return num_contracts
+
+def build_long_short_contracts(long_symbol, short_symbol, long_amount_usdt, short_amount_usdt):
+    long_contracts = amount_to_contracts(long_symbol, long_amount_usdt)
+    buy_by_contracts(long_symbol, long_contracts)
+    print(f"做多{long_symbol} {long_amount_usdt} USDT")
+
+    short_contracts = amount_to_contracts(short_symbol, short_amount_usdt)
+    sell_by_contracts(short_symbol, short_contracts)
+    print(f"做空{long_symbol} {short_amount_usdt} USDT")
 
 def get_size(coin_symbol):
      # 確認目前交易對情況
@@ -76,11 +104,12 @@ def get_size(coin_symbol):
     return size
 
 def get_price(coin_symbol):
-    # 獲取 AGIX 和 FET 的目前價格
+    # 獲取 交易對 的目前價格
     ticker = bybit.fetch_ticker(coin_symbol)
-    return ticker
+    symblo_price = ticker['last']
+    return symblo_price
 
-def get_long_short_ratio(long_symbol, short_symbol):
+def get_long_short_ratio(long_symbol, short_symbol, scale):
     long_short_ratio = 0.0
 
     # 獲取做多交易對的目前價格
@@ -93,7 +122,7 @@ def get_long_short_ratio(long_symbol, short_symbol):
     # 提取價格
     short_price = short_ticker['last']
 
-    long_short_ratio = long_price / short_price
+    long_short_ratio = scale * long_price / short_price
 
     print(f"long short ration的值為: {long_short_ratio}\n\n\n")
 
@@ -103,8 +132,8 @@ def get_long_short_ratio(long_symbol, short_symbol):
 # 一行中輸入多個幣對，以空格分隔
 # long_symbol = [str(item) for item in input("做空幣對：").split()]
 # short_symbol = [str(item) for item in input("做多幣對：").split()]
-long_symbol = str(input("請輸入做空幣對："))
-short_symbol = str(input("請設定做多幣對："))
+long_symbol = str(input("請輸入做多幣對："))
+short_symbol = str(input("請設定做空幣對："))
 print(long_symbol)
 print(short_symbol)
 
@@ -115,28 +144,51 @@ print(risk_ratio)
 print(stop_ratio)
 
 # 設定做多做空金額
-input_amount = float(input("請輸入投入金額："))
+input_amount = float(input("請輸入預期投入金額："))
+
+# 設定放大縮小成數
+scale = 10000
 
 # 買入交易對
 init_buy_ratio = 0.0
 build_long_short_contracts(long_symbol, short_symbol, input_amount/2, input_amount/2)
-init_buy_ratio = get_long_short_ratio(long_symbol, short_symbol)
+init_buy_ratio = get_long_short_ratio(long_symbol, short_symbol, scale)
+actual_long_amount = get_price(long_symbol) * get_size(long_symbol)
+actual_short_amount = get_price(short_symbol) * get_size(short_symbol)
 print(init_buy_ratio)
+print(f"初始購買ratio為：{init_buy_ratio}")
+print(f"初始購買數量為做多{long_symbol} {actual_long_amount} USDT, 做空 {short_symbol} {actual_short_amount} USDT")
+actual_input_amount = actual_long_amount + actual_short_amount
+
 
 # 計算初始停利停損ratio
 adjust_buy_ratio = init_buy_ratio
 adjust_stop_ratio = adjust_buy_ratio * (1.0 - stop_ratio)
 adjust_profit_ratio = adjust_buy_ratio * (1.0 + risk_ratio * stop_ratio)
-print(adjust_stop_ratio)
-print(adjust_profit_ratio)
+print(f"初始停損ratio為：{adjust_stop_ratio}")
+print(f"初始停利ratio為：{adjust_profit_ratio}")
 
 check_exit_loop = False
 
 while True:
     try:
+        # 確認目前size
+        long_size = get_size(long_symbol)
+        long_price = get_price(long_symbol)
+        short_size = get_size(short_symbol)
+        short_price = get_price(short_symbol)
+        long_amount = long_price * long_size
+        short_amount = short_price * short_size
+        print(f"目前最新long {long_symbol}為：{long_size}口, 總共 {long_amount} USDT")
+        print(f"目前最新short {short_symbol}為：{short_size}口, 總共 {short_amount} USDT")
+
+
         # 確認目前最新ratio
-        long_short_ratio = get_long_short_ratio(long_symbol, short_symbol)
+        long_short_ratio = get_long_short_ratio(long_symbol, short_symbol, scale)
         print(f"目前最新 ratio為：{long_short_ratio}")
+        # 目前停利停損價格
+        print(f"目前止損：{adjust_stop_ratio}, 目前止盈: {adjust_profit_ratio}")
+        # current_profit_loss_ratio(long_symbol, short_symbol)
 
         if long_short_ratio == 0:
             check_exit_loop = True
@@ -149,26 +201,25 @@ while True:
             adjust_buy_ratio = long_short_ratio
             print(f"新的止損：{adjust_stop_ratio}, 新的止盈: {adjust_profit_ratio}")
 
-
         # 到達停損，清空艙位
-        if long_short_ratio == adjust_stop_ratio:
+        if long_short_ratio < adjust_stop_ratio:
             long_latest_price = get_price(long_symbol)
             short_latest_price = get_price(short_symbol)
             long_size = get_size(long_symbol)
             short_size = get_size(short_symbol)
             # 下多單
-            sell(long_symbol, long_size)
-            buy(short_symbol, short_size)
+            sell_by_contracts(long_symbol, long_size)
+            buy_by_contracts(short_symbol, short_size)
 
             print("到達停損，清空艙位\n\n")
 
             # 計算實際獲利或虧損
-            long_stop_amount = long_latest_price * long_size
-            short_stop_amount = short_latest_price * short_size
+            # long_stop_amount = long_latest_price * long_size
+            # short_stop_amount = short_latest_price * short_size
 
-            stop_profit_ratio = ((long_stop_amount + short_stop_amount) / input_amount) - 1
+            # stop_profit_ratio = ((long_stop_amount + short_stop_amount) / actual_input_amount) - 1
 
-            print(f"投入：{input_amount} USDT，營利百分比：{stop_profit_ratio * 100:.3f}%")
+            # print(f"投入：{actual_input_amount} USDT，營利百分比：{stop_profit_ratio * 100:.3f}%")
             
             check_exit_loop = True
 
