@@ -7,6 +7,9 @@ bybit = ccxt.bybit({
     'secret': '',
 })
 
+# Set for testnet
+bybit.set_sandbox_mode(True)
+
 # 設定交易對和數量
 # symbol_agix = 'AGIX/USDT:USDT'  # AGIXUSDU21 是 AGIX 的期貨合約
 # symbol_fet = 'FET/USDT:USDT'    # FETUSDU21 是 FET 的期貨合約
@@ -15,7 +18,6 @@ symbol_btc = 'BTC/USDT:USDT'
 symbol_sol = 'SOL/USDT:USDT'
 symbol_bnb = 'BNB/USDT:USDT'
 symbol_eth = 'ETH/USDT:USDT'
-symbol_doge = 'DOGE/USDT:USDT'
 
 # sell symbol lists
 # short_symbol = [symbol_btc, symbol_eth, symbol_sol]
@@ -35,7 +37,7 @@ symbol_doge = 'DOGE/USDT:USDT'
 # adjust_sell_ratio = init_buy_ratio * (1.0 + profit_ratio)
 # adjust_stop_ratio = 3.5
 
-# def current_profit_loss_ratio(long_symbol, short_symbol):
+def current_profit_loss_ratio(long_symbol, short_symbol):
     # long_latest_price = get_price(long_symbol)
     # short_latest_price = get_price(short_symbol)
     # long_size = get_size(long_symbol)
@@ -158,6 +160,7 @@ print(f"初始購買ratio為：{init_buy_ratio}")
 print(f"初始購買數量為做多{long_symbol} {actual_long_amount} USDT, 做空 {short_symbol} {actual_short_amount} USDT")
 actual_input_amount = actual_long_amount + actual_short_amount
 
+
 # 計算初始停利停損ratio
 adjust_buy_ratio = init_buy_ratio
 adjust_stop_ratio = adjust_buy_ratio * (1.0 - stop_ratio)
@@ -191,12 +194,12 @@ while True:
             check_exit_loop = True
 
         # 設定移動停利停損
-        # if long_short_ratio > adjust_buy_ratio:
-        #     print(f"更新buy ratio為：{long_short_ratio}, 原本 ratio為:{adjust_buy_ratio}, 原始買入ratio為:{init_buy_ratio}")
-        #     adjust_stop_ratio = long_short_ratio * (1.0 - stop_ratio)
-        #     adjust_profit_ratio = long_short_ratio * (1.0 + risk_ratio * stop_ratio)
-        #     adjust_buy_ratio = long_short_ratio
-        #     print(f"新的止損：{adjust_stop_ratio}, 新的止盈: {adjust_profit_ratio}")
+        if long_short_ratio > adjust_buy_ratio:
+            print(f"更新buy ratio為：{long_short_ratio}, 原本 ratio為:{adjust_buy_ratio}, 原始買入ratio為:{init_buy_ratio}")
+            adjust_stop_ratio = long_short_ratio * (1.0 - stop_ratio)
+            adjust_profit_ratio = long_short_ratio * (1.0 + risk_ratio * stop_ratio)
+            adjust_buy_ratio = long_short_ratio
+            print(f"新的止損：{adjust_stop_ratio}, 新的止盈: {adjust_profit_ratio}")
 
         # 到達停損，清空艙位
         if long_short_ratio < adjust_stop_ratio:
@@ -217,18 +220,6 @@ while True:
             # stop_profit_ratio = ((long_stop_amount + short_stop_amount) / actual_input_amount) - 1
 
             # print(f"投入：{actual_input_amount} USDT，營利百分比：{stop_profit_ratio * 100:.3f}%")
-
-            check_exit_loop = True
-
-        # 到達停利，清空艙位
-        elif long_short_ratio > adjust_profit_ratio:
-            long_size = get_size(long_symbol)
-            short_size = get_size(short_symbol)
-            # 清空艙位
-            sell_by_contracts(long_symbol, long_size)
-            buy_by_contracts(short_symbol, short_size)
-
-            print("到達停利，清空艙位\n\n")
 
             check_exit_loop = True
 
