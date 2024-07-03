@@ -74,8 +74,8 @@ def get_price(coin_symbol):
 
 # 程式開始
 # 一行中輸入多個幣對，以空格分隔
-long_symbol = [str(item) for item in input("做空幣對：").split()]
-short_symbol = [str(item) for item in input("做多幣對：").split()]
+long_symbol = [str(item) for item in input("做多幣對：").split()]
+short_symbol = [str(item) for item in input("做空幣對：").split()]
 print(long_symbol)
 print(short_symbol)
 
