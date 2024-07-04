@@ -7,11 +7,9 @@ secret = ''
 long_symbol = 'BTC/USDT:USDT'
 short_symbol = 'DOGE/USDT:USDT'
 
-SCALE_RATIO = 1
-
 my_lib = MyCCXTLibrary('bybit', api_key, secret)
 
-my_lib.use_testnet()
+SCALE_RATIO = 1
 
 long_symbol = str(input("請輸入單一做多幣對："))
 short_symbol = str(input("請設定單一做空幣對："))
